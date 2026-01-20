@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>레시피</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #fafafa;
+      overflow-x: hidden;
+    }
+    
+    @media (max-width: 768px) {
+      html, body {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+
+      * {
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+    }
+    
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #ffffff;
+      border-bottom: 1px solid #ddd;
+      padding: 12px 16px;
+    }
+    header h1 {
+      margin: 0 0 10px 0;
+      font-size: 20px;
+      text-align: center;
+    }
+    .filter {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .filter select,
+    .filter input {
+      flex: 1;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    header button {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      background: #4CAF50;
+      color: white;
+    }
+    main {
+      padding: 16px;
+    }
+    .recipe {
+      background: white;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .recipe h3 { margin: 0 0 6px 0; }
+    .meta { font-size: 13px; color: #666; margin-bottom: 6px; }
+    .details { display: none; margin-top: 8px; }
+    .details.show { display: block; }
+    .actions { margin-top: 8px; text-align: right; }
+    .actions button {
+      font-size: 13px;
+      padding: 6px 10px;
+      border: none;
+      border-radius: 6px;
+      background: #ddd;
+      margin-left: 4px;
+    }
+    .favorite { background: gold; }
+    #formView { display: none; }
+label {
+      display: block;
+      margin-top: 14px;
+      font-weight: bold;
+    }
+
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 240px; /* ✅ 기존 요청대로 높이 2배 유지 */
+    }
+
+    .checkbox-group {
+      display: flex;
+      gap: 16px;
+      margin-top: 8px;
+    }
+
+    .form-buttons {
+      margin-top: 24px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .form-buttons button {
+      flex: 1;
+      padding: 12px;
+      font-size: 15px;
+      border-radius: 8px;
+      border: none;
+    }
+
+    .save {
+      background: #2196F3;
+      color: white;
+    }
+
+    .back {
+      background: #ccc;
+    }
+
+    .empty {
+      color: #777;
+      text-align: center;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>레시피</h1>
+  <div class="filter">
+    <select id="filterCategory">
+      <option value="">전체 분류</option>
+      <option value="주식">주식</option>
+      <option value="반찬">반찬</option>
+      <option value="국">국</option>
+      <option value="간식">간식</option>
+    </select>
+    <select id="filterTarget">
+      <option value="">전체</option>
+      <option value="한나">한나</option>
+      <option value="예나">예나</option>
+      <option value="어른">어른</option>
+    </select>
+    <select id="filterFavorite">
+      <option value="">전체</option>
+      <option value="favorite">즐겨찾기</option>
+    </select>
+    <input type="text" id="filterIngredient" placeholder="레시피 검색" />
+  </div>
+  <button id="addBtn">+ 레시피 추가</button>
+</header>
+
+<main>
+  <section id="listView">
+    <div id="recipeList"></div>
+  </section>
+
+  <section id="formView">
+    <label>레시피 이름</label>
+    <input type="text" id="title" />
+
+    <label>누가 먹었나요</label>
+    <div class="checkbox-group">
+      <label><input type="checkbox" value="한나" /> 한나</label>
+      <label><input type="checkbox" value="예나" /> 예나</label>
+      <label><input type="checkbox" value="어른" /> 어른</label>
+    </div>
+
+    <label>분류</label>
+    <select id="category">
+      <option value="">선택하세요</option>
+      <option value="주식">주식</option>
+      <option value="반찬">반찬</option>
+      <option value="국">국</option>
+      <option value="간식">간식</option>
+    </select>
+
+    <label>조리 방법</label>
+    <textarea id="method"></textarea>
+
+    <label>메모</label>
+    <textarea id="memo"></textarea>
+
+    <div class="form-buttons">
+      <button class="save" id="saveBtn">저장</button>
+      <button class="back" id="backBtn">목록으로 돌아가기</button>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+  import {
+    getFirestore,
+    collection,
+    onSnapshot,
+    addDoc,
+    updateDoc,
+    deleteDoc,
+    doc,
+    serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+  /* ===== Firebase 초기화 ===== */
+  const firebaseConfig = {
+    apiKey: "AIzaSyAwkEUsRcn-y2E5t8jaJ0dpRYxqHZSFAmM",
+    authDomain: "hyrecipes-9741c.firebaseapp.com",
+    projectId: "hyrecipes-9741c",
+    storageBucket: "hyrecipes-9741c.appspot.com",
+    messagingSenderId: "162012587383",
+    appId: "1:162012587383:web:f8e6f21579a16d76912d72"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const recipesStore = collection(db, "recipes");
+
+  /* ===== 기존 전역 변수 ===== */
+  let allRecipes = [];
+  let editingId = null;
+
+  /* 🔴 동시 수정 감지용 기준 시간 */
+  let editingBaseUpdatedAt = null;
+
+  /* ===== 실시간 동기화 ===== */
+  onSnapshot(recipesStore, (snapshot) => {
+    allRecipes = snapshot.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    }));
+    applyFilter();
+  });
+
+  /* ===== 필터 / 렌더링 (기존 그대로) ===== */
+  function applyFilter() {
+    recipeList.innerHTML = "";
+
+    const category = filterCategory.value;
+    const target = filterTarget.value;
+    const favorite = filterFavorite.value;
+    const keyword = filterIngredient.value.toLowerCase();
+
+    const filtered = allRecipes
+      .filter(r => {
+        const matchCategory = !category || r.category === category;
+        const matchTarget = !target || r.targets.includes(target);
+        const matchFavorite = !favorite || r.favorite === true;
+        const matchKeyword = !keyword || r.title.toLowerCase().includes(keyword);
+        return matchCategory && matchTarget && matchFavorite && matchKeyword;
+      })
+      .sort((a, b) => a.title.localeCompare(b.title, "ko"));
+
+    if (filtered.length === 0) {
+      recipeList.innerHTML = `<div class="empty">조건에 맞는 레시피가 없습니다</div>`;
+      return;
+    }
+
+    filtered.forEach(r => {
+      const div = document.createElement("div");
+      div.className = "recipe";
+
+      div.innerHTML = `
+        <h3>${r.title}</h3>
+        <div class="meta">${r.targets.join(", ")} · ${r.category}</div>
+
+        <div class="details">
+          <p><strong>조리 방법</strong><br>${r.method.replace(/\n/g, "<br>")}</p>
+          ${r.memo ? `<p><strong>메모</strong><br>${r.memo.replace(/\n/g, "<br>")}</p>` : ""}
+        </div>
+
+        <div class="actions">
+          <button onclick="toggleFavorite('${r.id}')" class="${r.favorite ? 'favorite' : ''}">
+            ${r.favorite ? '★' : '☆'}
+          </button>
+          <button onclick="toggleDetails(this)">∨</button>
+          <button onclick="editRecipe('${r.id}')">수정</button>
+          <button onclick="deleteRecipe('${r.id}')">삭제</button>
+        </div>
+      `;
+
+      recipeList.appendChild(div);
+    });
+  }
+
+  /* ===== UI 토글 ===== */
+  window.toggleDetails = btn => {
+    btn.closest(".recipe").querySelector(".details").classList.toggle("show");
+  };
+
+  /* ===== 즐겨찾기 ===== */
+  window.toggleFavorite = async id => {
+    const recipe = allRecipes.find(r => r.id === id);
+    await updateDoc(doc(db, "recipes", id), {
+      favorite: !recipe.favorite,
+      updatedAt: serverTimestamp()
+    });
+  };
+
+  /* ===== 삭제 ===== */
+  window.deleteRecipe = async id => {
+    if (!confirm("삭제 하겠습니까?")) return;
+    await deleteDoc(doc(db, "recipes", id));
+  };
+
+  /* ===== 수정 ===== */
+  window.editRecipe = id => {
+    const recipe = allRecipes.find(r => r.id === id);
+    editingId = id;
+
+    /* 🔴 기준 시각 저장 */
+    editingBaseUpdatedAt = recipe.updatedAt || null;
+
+    title.value = recipe.title;
+    method.value = recipe.method;
+    memo.value = recipe.memo;
+    category.value = recipe.category;
+
+    document.querySelectorAll(".checkbox-group input").forEach(c => {
+      c.checked = recipe.targets.includes(c.value);
+    });
+
+    listView.style.display = "none";
+    formView.style.display = "block";
+    window.scrollTo({ top: 0 });
+  };
+
+  /* ===== 필터 이벤트 ===== */
+  filterCategory.onchange =
+  filterTarget.onchange =
+  filterFavorite.onchange =
+  filterIngredient.oninput = applyFilter;
+
+  /* ===== 추가 ===== */
+  addBtn.onclick = () => {
+    editingId = null;
+    editingBaseUpdatedAt = null;
+
+    document.querySelectorAll("input, textarea").forEach(e => e.value = "");
+    document.querySelectorAll(".checkbox-group input").forEach(c => c.checked = false);
+    category.value = "";
+
+    listView.style.display = "none";
+    formView.style.display = "block";
+  };
+
+  /* ===== 돌아가기 ===== */
+  backBtn.onclick = () => {
+    formView.style.display = "none";
+    listView.style.display = "block";
+  };
+
+  /* ===== 저장 ===== */
+  saveBtn.onclick = async () => {
+    const data = {
+      title: title.value.trim(),
+      method: method.value.trim(),
+      memo: memo.value.trim(),
+      category: category.value,
+      targets: [...document.querySelectorAll(".checkbox-group input:checked")].map(c => c.value),
+      favorite: editingId
+        ? allRecipes.find(r => r.id === editingId).favorite
+        : false,
+      updatedAt: serverTimestamp()
+    };
+
+    if (!data.title || !data.method || !data.category || data.targets.length === 0) {
+      alert("필수 항목을 모두 입력해 주세요");
+      return;
+    }
+
+    /* 🔴 동시 수정 경고 */
+    if (editingId && editingBaseUpdatedAt) {
+      const latest = allRecipes.find(r => r.id === editingId);
+
+      if (
+        latest.updatedAt &&
+        latest.updatedAt.seconds !== editingBaseUpdatedAt.seconds
+      ) {
+        const proceed = confirm(
+          "다른 기기에서 이 레시피가 이미 수정되었습니다.\n그래도 덮어쓸까요?"
+        );
+        if (!proceed) return;
+      }
+    }
+
+    if (editingId === null) {
+      await addDoc(recipesStore, data);
+    } else {
+      await updateDoc(doc(db, "recipes", editingId), data);
+    }
+
+    formView.style.display = "none";
+    listView.style.display = "block";
+  };
+</script>
+
+
+
+
+</body>
+</html>
